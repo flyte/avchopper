@@ -1,3 +1,4 @@
+from __future__ import print_function
 import os
 import json
 import tempfile
@@ -15,10 +16,9 @@ def ffmpeg(args, capture_stdout=False):
     return func([FFMPEG_BIN]+args, stderr=DEV_NULL)
 
 
-def ffprobe(args, capture_stdout=False):
+def ffprobe(args):
     """ Call ffprobe and redirect stderr to /dev/null """
-    func = check_output if capture_stdout else check_call
-    return func([FFPROBE_BIN]+args, stderr=DEV_NULL)
+    return check_output([FFPROBE_BIN]+args, stderr=DEV_NULL)
 
 
 class Video:
@@ -57,7 +57,7 @@ class Video:
             "-i", images_path,
             dest_path
         ]
-        print "Running ffmpeg command: %r" % " ".join(args)
+        print("Running ffmpeg command: %r" % " ".join(args))
         ffmpeg(args)
         return Video(dest_path)
 
@@ -85,7 +85,7 @@ class Video:
             "-i", self.source,
             output_path
         ]
-        print "Running command: %r" % " ".join(args)
+        print("Running command: %r" % " ".join(args))
         ffmpeg(args)
         self.frame_paths = [os.path.join(dest_dir, x) for x in sorted(os.listdir(dest_dir))]
 
