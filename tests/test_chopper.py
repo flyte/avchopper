@@ -126,3 +126,18 @@ class TestVideo:
             assert magic.from_file(output_file, mime=True) == "video/mp4"
         finally:
             shutil.rmtree(tempdir)
+
+    def test_overlay(self):
+        """
+        Should overlay a video on top of a section of the original video.
+        """
+        vid = ffchopper.Video(TEST_VID_PATH)
+        vid2 = ffchopper.Video(TEST_VID_PATH)
+        tempdir = tempfile.mkdtemp()
+        try:
+            output_path = os.path.join(tempdir, "joined.mp4")
+            vid.overlay(vid2, 1, output_path)
+            assert os.path.exists(output_path)
+            assert magic.from_file(output_path, mime=True) == "video/mp4"
+        finally:
+            shutil.rmtree(tempdir)

@@ -3,6 +3,7 @@ import os
 import locale
 import json
 import tempfile
+import shutil
 from subprocess import check_call, check_output
 
 
@@ -33,7 +34,7 @@ class Video:
     def __init__(self, source):
         if not os.path.exists(source):
             raise IOError("File does not exist at %r" % source)
-        self.source = source
+        self.source = os.path.abspath(source)
         self._data = None
         self._frame_paths = []
 
@@ -99,7 +100,7 @@ class Video:
         ffmpeg(args)
         self.frame_paths = [os.path.join(dest_dir, x) for x in sorted(os.listdir(dest_dir))]
 
-    def overlay(self, vid, start_seconds, limit=None):
+    def overlay(self, vid, start_seconds, output_path):
         """
         Overlay the contents of `vid` onto this video starting at `start_frame`
         for `limit` seconds.
@@ -107,40 +108,43 @@ class Video:
         if isinstance(vid, str):
             vid = Video(vid)
 
+        overlay_seconds = float(vid.data["streams"][0]["duration"])
+
         tmpdir = tempfile.mkdtemp()
-        overlay_seconds = limit or float(vid.data["streams"][0]["duration"])
-
-        # Split original video into two parts, missing the overlay part
-        source_a = os.path.join(tmpdir, "source-a.mp4")
-        source_b = os.path.join(tmpdir, "source-b.mp4")
-        args = [
-            "-i", self.source,
-            "-t", str(start_seconds),
-            source_a,
-            "-ss", str(start_seconds + overlay_seconds),
-            source_b
-        ]
-        ffmpeg(args)
-
-        filenames_txt = os.path.join(tmpdir, "files.txt")
-        with open(filenames_txt, "w") as f:
-            f.writelines(["file %s\n" % x for x in (
+        try:
+            # Split original video into two parts, missing the overlay part
+            source_a = os.path.join(tmpdir, "source-a.mp4")
+            source_b = os.path.join(tmpdir, "source-b.mp4")
+            args = [
+                "-i", self.source,
+                "-t", str(start_seconds),
                 source_a,
-                vid.source,
+                "-ss", str(start_seconds + overlay_seconds),
                 source_b
-            )])
+            ]
+            ffmpeg(args)
 
-        # Join the three video parts together (source 1, new bit, source 2)
-        joined = os.path.join(tmpdir, "joined.mp4")
-        args = [
-            "-f", "concat",
-            "-i", filenames_txt,
-            "-c", "copy",
-            joined
-        ]
-        ffmpeg(args)
-        for path in (source_a, source_b, filenames_txt):
-            os.unlink(path)
+            filenames_txt = os.path.join(tmpdir, "files.txt")
+            with open(filenames_txt, "w") as f:
+                f.writelines(["file %s\n" % x for x in (
+                    source_a,
+                    vid.source,
+                    source_b
+                )])
+
+            # Join the three video parts together (source 1, new bit, source 2)
+            joined = os.path.join(tmpdir, "joined.mp4")
+            args = [
+                "-f", "concat",
+                "-i", filenames_txt,
+                "-c", "copy",
+                joined
+            ]
+            ffmpeg(args)
+            shutil.move(joined, output_path)
+        finally:
+            return
+            shutil.rmtree(tmpdir)
 
         # overlay_dir = os.path.join(tmpdir, "overlay")
         # os.mkdir(overlay_dir)
