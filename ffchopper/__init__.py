@@ -1,11 +1,24 @@
 import os
 import json
 import tempfile
-import shutil
 from subprocess import check_call, check_output
+
 
 FFMPEG_BIN = "ffmpeg"
 FFPROBE_BIN = "ffprobe"
+DEV_NULL = open(os.devnull, "w")
+
+
+def ffmpeg(args, capture_stdout=False):
+    """ Call ffmpeg and redirect stderr to /dev/null """
+    func = check_output if capture_stdout else check_call
+    return func([FFMPEG_BIN]+args, stderr=DEV_NULL)
+
+
+def ffprobe(args, capture_stdout=False):
+    """ Call ffprobe and redirect stderr to /dev/null """
+    func = check_output if capture_stdout else check_call
+    return func([FFPROBE_BIN]+args, stderr=DEV_NULL)
 
 
 class Video:
@@ -25,14 +38,12 @@ class Video:
         """
         Get the details of the video.
         """
-        cmd = [
-            FFPROBE_BIN,
+        args = [
             "-print_format", "json",
             "-show_streams",
             video_path
         ]
-        probe = json.loads(check_output(cmd))
-        return probe
+        return json.loads(ffprobe(args, capture_stdout=True))
 
     @staticmethod
     def from_images(images_path, fps, dest_path):
@@ -41,28 +52,26 @@ class Video:
 
         :returns: Video
         """
-        cmd = [
-            FFMPEG_BIN,
+        args = [
             "-r", str(fps),
             "-i", images_path,
             dest_path
         ]
-        print "Running command: %r" % " ".join(cmd)
-        check_call(cmd)
+        print "Running ffmpeg command: %r" % " ".join(args)
+        ffmpeg(args)
         return Video(dest_path)
 
     def extract_audio(self, output_path):
         """
         Extracts the audio stream(s) from the video.
         """
-        cmd = [
-            FFMPEG_BIN,
+        args = [
             "-i", self.source,
             "-vn",
             "-acodec", "copy",
             output_path
         ]
-        check_call(cmd)
+        ffmpeg(args)
 
     def to_images(self, dest_dir=None):
         """
@@ -72,38 +81,36 @@ class Video:
         output_path = "%s-%%03d.png" % name
         if dest_dir is not None:
             output_path = os.path.join(dest_dir, os.path.basename(output_path))
-        cmd = [
-            FFMPEG_BIN,
+        args = [
             "-i", self.source,
             output_path
         ]
-        print "Running command: %r" % " ".join(cmd)
-        check_call(cmd)
+        print "Running command: %r" % " ".join(args)
+        ffmpeg(args)
         self.frame_paths = [os.path.join(dest_dir, x) for x in sorted(os.listdir(dest_dir))]
 
     def overlay(self, vid, start_seconds, limit=None):
         """
         Overlay the contents of `vid` onto this video starting at `start_frame`
-        for `limit` frames.
+        for `limit` seconds.
         """
         if isinstance(vid, str):
             vid = Video(vid)
 
         tmpdir = tempfile.mkdtemp()
-        overlay_seconds = float(vid.data["streams"][0]["duration"])
+        overlay_seconds = limit or float(vid.data["streams"][0]["duration"])
 
         # Split original video into two parts, missing the overlay part
         source_a = os.path.join(tmpdir, "source-a.mp4")
         source_b = os.path.join(tmpdir, "source-b.mp4")
-        cmd = [
-            FFMPEG_BIN,
+        args = [
             "-i", self.source,
             "-t", str(start_seconds),
             source_a,
             "-ss", str(start_seconds + overlay_seconds),
             source_b
         ]
-        check_call(cmd)
+        ffmpeg(args)
 
         filenames_txt = os.path.join(tmpdir, "files.txt")
         with open(filenames_txt, "w") as f:
@@ -115,14 +122,15 @@ class Video:
 
         # Join the three video parts together (source 1, new bit, source 2)
         joined = os.path.join(tmpdir, "joined.mp4")
-        cmd = [
-            FFMPEG_BIN,
+        args = [
             "-f", "concat",
             "-i", filenames_txt,
             "-c", "copy",
             joined
         ]
-        check_call(cmd)
+        ffmpeg(args)
+        for path in (source_a, source_b, filenames_txt):
+            os.unlink(path)
 
         # overlay_dir = os.path.join(tmpdir, "overlay")
         # os.mkdir(overlay_dir)
@@ -152,9 +160,9 @@ class Video:
         #     shutil.copy(new_file_path, file_path)
         #     j += 1
 
-    def splice(self, vid, start_frame, limit=None):
+    def insert(self, vid, start_frame, limit=None):
         """
-        Splice the contents of `vid` into this video starting at `start_frame`
+        Insert the contents of `vid` into this video starting at `start_frame`
         for `limit` frames.
         """
         pass
