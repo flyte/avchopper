@@ -136,6 +136,7 @@ class Video:
             joined = os.path.join(tmpdir, "joined.mp4")
             args = [
                 "-f", "concat",
+                "-safe", "0",
                 "-i", filenames_txt,
                 "-c", "copy",
                 joined
