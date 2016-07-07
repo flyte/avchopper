@@ -1,5 +1,6 @@
 language: python
 python: 3.5
+sudo: required
 
 env:
   - TOX_ENV=py27
@@ -10,8 +11,8 @@ env:
 before_install:
   - wget http://johnvansickle.com/ffmpeg/builds/ffmpeg-git-64bit-static.tar.xz
   - tar xvf ffmpeg-git-64bit-static.tar.xz
-  - cp ffmpeg-git-20160706-64bit-static/ffmpeg /usr/local/bin/
-  - cp ffmpeg-git-20160706-64bit-static/ffprobe /usr/local/bin/
+  - sudo cp ffmpeg-git-20160706-64bit-static/ffmpeg /usr/local/bin/
+  - sudo cp ffmpeg-git-20160706-64bit-static/ffprobe /usr/local/bin/
 
 install:
   - pip install tox
