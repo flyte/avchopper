@@ -7,11 +7,11 @@ env:
   - TOX_ENV=py34
   - TOX_ENV=py35
 
-addons:
-  apt:
-    packages:
-      - ffmpeg
-      - ffprobe
+before_install:
+  - wget http://johnvansickle.com/ffmpeg/builds/ffmpeg-git-64bit-static.tar.xz
+  - tar xvf ffmpeg-git-64bit-static.tar.xz
+  - cp ffmpeg /usr/local/bin/
+  - cp ffprobe /usr/local/bin/
 
 install:
   - pip install tox
