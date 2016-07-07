@@ -113,3 +113,16 @@ class TestVideo:
             assert magic.from_file(os.path.join(tempdir, files[0]), mime=True) == "image/jpeg"
         finally:
             shutil.rmtree(tempdir)
+
+    def test_from_images(self):
+        """
+        Should build a video from a sequence of images and return it as a Video.
+        """
+        tempdir = tempfile.mkdtemp()
+        output_file = os.path.join(tempdir, "output.mp4")
+        try:
+            ffchopper.Video.from_images("tests/images/test-%03d.jpg", 25, output_file)
+            assert os.path.exists(output_file)
+            assert magic.from_file(output_file, mime=True) == "video/mp4"
+        finally:
+            shutil.rmtree(tempdir)
