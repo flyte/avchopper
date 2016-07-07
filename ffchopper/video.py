@@ -143,7 +143,6 @@ class Video:
             ffmpeg(args)
             shutil.move(joined, output_path)
         finally:
-            return
             shutil.rmtree(tmpdir)
 
         # overlay_dir = os.path.join(tmpdir, "overlay")
