@@ -1,5 +1,6 @@
 from __future__ import print_function
 import os
+import locale
 import json
 import tempfile
 from subprocess import check_call, check_output
@@ -8,21 +9,29 @@ from subprocess import check_call, check_output
 FFMPEG_BIN = "ffmpeg"
 FFPROBE_BIN = "ffprobe"
 DEV_NULL = open(os.devnull, "w")
+ENCODING = locale.getpreferredencoding()
+
+
+def check_output_decoded(*args, **kwargs):
+    """ Call check_output and decode the resulting bytes. """
+    return check_output(*args, **kwargs).decode(ENCODING)
 
 
 def ffmpeg(args, capture_stdout=False):
     """ Call ffmpeg and redirect stderr to /dev/null """
-    func = check_output if capture_stdout else check_call
+    func = check_output_decoded if capture_stdout else check_call
     return func([FFMPEG_BIN]+args, stderr=DEV_NULL)
 
 
 def ffprobe(args):
     """ Call ffprobe and redirect stderr to /dev/null """
-    return check_output([FFPROBE_BIN]+args, stderr=DEV_NULL)
+    return check_output_decoded([FFPROBE_BIN]+args, stderr=DEV_NULL)
 
 
 class Video:
     def __init__(self, source):
+        if not os.path.exists(source):
+            raise IOError("File does not exist at %r" % source)
         self.source = source
         self._data = None
         self._frame_paths = []
@@ -43,7 +52,7 @@ class Video:
             "-show_streams",
             video_path
         ]
-        return json.loads(ffprobe(args, capture_stdout=True))
+        return json.loads(ffprobe(args))
 
     @staticmethod
     def from_images(images_path, fps, dest_path):
