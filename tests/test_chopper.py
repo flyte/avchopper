@@ -98,3 +98,18 @@ class TestVideo:
             assert magic.from_file(audio_file, mime=True) == "audio/x-hx-aac-adts"
         finally:
             shutil.rmtree(tempdir)
+
+    def test_to_images(self):
+        """
+        Should split the video into a sequence of PNGs.
+        """
+        vid = ffchopper.Video(TEST_VID_PATH)
+        frame_count = int(vid.data["streams"][0]["nb_frames"])
+        tempdir = tempfile.mkdtemp()
+        try:
+            vid.to_images(tempdir, "jpg")
+            files = os.listdir(tempdir)
+            assert len(files) == frame_count
+            assert magic.from_file(os.path.join(tempdir, files[0]), mime=True) == "image/jpeg"
+        finally:
+            shutil.rmtree(tempdir)

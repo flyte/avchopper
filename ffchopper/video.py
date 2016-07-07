@@ -20,7 +20,8 @@ def check_output_decoded(*args, **kwargs):
 def ffmpeg(args, capture_stdout=False):
     """ Call ffmpeg and redirect stderr to /dev/null """
     func = check_output_decoded if capture_stdout else check_call
-    return func([FFMPEG_BIN]+args, stderr=DEV_NULL)
+    # return func([FFMPEG_BIN]+args, stderr=DEV_NULL)
+    return func([FFMPEG_BIN]+args)
 
 
 def ffprobe(args):
@@ -82,12 +83,12 @@ class Video:
         ]
         ffmpeg(args)
 
-    def to_images(self, dest_dir=None):
+    def to_images(self, dest_dir=None, img_format="png"):
         """
         Convert this video to individual frame images.
         """
         name, _ = os.path.splitext(self.source)
-        output_path = "%s-%%03d.png" % name
+        output_path = "%s-%%03d.%s" % (name, img_format)
         if dest_dir is not None:
             output_path = os.path.join(dest_dir, os.path.basename(output_path))
         args = [
