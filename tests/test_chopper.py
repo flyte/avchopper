@@ -101,7 +101,7 @@ class TestVideo:
 
     def test_to_images(self):
         """
-        Should split the video into a sequence of PNGs.
+        Should split the video into a sequence of images.
         """
         vid = ffchopper.Video(TEST_VID_PATH)
         frame_count = int(vid.data["streams"][0]["nb_frames"])
