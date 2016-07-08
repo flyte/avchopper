@@ -162,9 +162,9 @@ class TestVideo:
         """
         assert magic.from_file(TEST_VID_PATH, mime=True) == "video/mp4"
         vid = ffchopper.Video(TEST_VID_PATH)
-        output_file = os.path.join(tempdir, "output.mkv")
+        output_file = os.path.join(tempdir, "output.avi")
         vid.reencode(output_file)
-        assert magic.from_file(output_file, mime=True) == "video/x-matroska"
+        assert magic.from_file(output_file, mime=True) == "video/x-msvideo"
 
     def test_insert(self):
         """
