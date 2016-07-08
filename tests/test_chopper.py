@@ -7,6 +7,7 @@ import pytest
 import magic
 
 import ffchopper
+from ffchopper.util import tempdir
 
 
 TEST_VID_PATH = "tests/test.mp4"
@@ -92,81 +93,78 @@ class TestVideo:
         vid = ffchopper.Video(TEST_VID_PATH)
         assert "streams" in vid.data
 
-    def test_extract_audio(self):
+    @tempdir
+    def test_extract_audio(tempdir, self):
         """
         Should extract the audio from a video and save it to the specified path.
         """
         vid = ffchopper.Video(TEST_VID_PATH)
-        tempdir = tempfile.mkdtemp()
         audio_file = os.path.join(tempdir, "audio.aac")
-        try:
-            vid.extract_audio(audio_file)
-            assert os.path.exists(audio_file)
-            assert magic.from_file(audio_file, mime=True) == "audio/x-hx-aac-adts"
-        finally:
-            shutil.rmtree(tempdir)
+        vid.extract_audio(audio_file)
+        assert os.path.exists(audio_file)
+        assert magic.from_file(audio_file, mime=True) == "audio/x-hx-aac-adts"
 
     @pytest.mark.slow
-    def test_to_images(self):
+    @tempdir
+    def test_to_images(tempdir, self):
         """
         Should split the video into a sequence of images.
         """
         vid = ffchopper.Video(TEST_VID_PATH)
         frame_count = int(vid.data["streams"][0]["nb_frames"])
-        tempdir = tempfile.mkdtemp()
-        try:
-            vid.to_images(tempdir, "jpg")
-            files = os.listdir(tempdir)
-            assert len(files) == frame_count
-            assert magic.from_file(os.path.join(tempdir, files[0]), mime=True) == "image/jpeg"
-        finally:
-            shutil.rmtree(tempdir)
+        vid.to_images(tempdir, "jpg")
+        files = os.listdir(tempdir)
+        assert len(files) == frame_count
+        assert magic.from_file(os.path.join(tempdir, files[0]), mime=True) == "image/jpeg"
 
     @pytest.mark.slow
-    def test_from_images(self):
+    @tempdir
+    def test_from_images(tempdir, self):
         """
         Should build a video from a sequence of images and return it as a Video.
         """
-        tempdir = tempfile.mkdtemp()
         output_file = os.path.join(tempdir, "output.mp4")
-        try:
-            ffchopper.Video.from_images("tests/images/test-%03d.jpg", 25, output_file)
-            assert os.path.exists(output_file)
-            assert magic.from_file(output_file, mime=True) == "video/mp4"
-        finally:
-            shutil.rmtree(tempdir)
+        ffchopper.Video.from_images("tests/images/test-%03d.jpg", 25, output_file)
+        assert os.path.exists(output_file)
+        assert magic.from_file(output_file, mime=True) == "video/mp4"
 
     @pytest.mark.slow
-    def test_overlay(self):
+    @tempdir
+    def test_overlay(tempdir, self):
         """
         Should overlay a video on top of a section of the original video.
         """
         vid = ffchopper.Video(TEST_VID_PATH)
         vid2 = ffchopper.Video(TEST_VID_PATH)
-        tempdir = tempfile.mkdtemp()
-        try:
-            output_path = os.path.join(tempdir, "joined.mp4")
-            vid.overlay(vid2, 1, output_path)
-            assert os.path.exists(output_path)
-            assert magic.from_file(output_path, mime=True) == "video/mp4"
-        finally:
-            shutil.rmtree(tempdir)
+        output_path = os.path.join(tempdir, "joined.mp4")
+        vid.overlay(vid2, 1, output_path)
+        assert os.path.exists(output_path)
+        assert magic.from_file(output_path, mime=True) == "video/mp4"
 
-    def test_overlay_accepts_string_path(self):
+    @tempdir
+    def test_overlay_accepts_string_path(tempdir, self):
         """
         Should accept a string as the `vid` parameter by creating a new Video with the supplied path
         """
         vid = ffchopper.Video(TEST_VID_PATH)
         with mock.patch("ffchopper.Video.__init__", side_effect=EarlyExitException()) as mock_const:
-            tempdir = tempfile.mkdtemp()
-            try:
-                output_path = os.path.join(tempdir, "joined.mp4")
-                with pytest.raises(EarlyExitException):
-                    vid.overlay(TEST_VID_PATH, 1, output_path)
-                assert mock_const.called
-                assert mock_const.call_args[0][0] == TEST_VID_PATH
-            finally:
-                shutil.rmtree(tempdir)
+            output_path = os.path.join(tempdir, "joined.mp4")
+            with pytest.raises(EarlyExitException):
+                vid.overlay(TEST_VID_PATH, 1, output_path)
+            assert mock_const.called
+            assert mock_const.call_args[0][0] == TEST_VID_PATH
+
+    @pytest.mark.slow
+    @tempdir
+    def test_reencode(tempdir, self):
+        """
+        Should convert the video to the desired encoding based on the file extension.
+        """
+        assert magic.from_file(TEST_VID_PATH, mime=True) == "video/mp4"
+        vid = ffchopper.Video(TEST_VID_PATH)
+        output_file = os.path.join(tempdir, "output.mkv")
+        vid.reencode(output_file)
+        assert magic.from_file(output_file, mime=True) == "video/x-matroska"
 
     def test_insert(self):
         """

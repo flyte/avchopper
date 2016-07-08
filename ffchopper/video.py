@@ -2,9 +2,10 @@ from __future__ import print_function
 import os
 import locale
 import json
-import tempfile
 import shutil
 from subprocess import check_call, check_output
+
+from .util import tempdir
 
 
 FFMPEG_BIN = "ffmpeg"
@@ -100,7 +101,45 @@ class Video:
         ffmpeg(args)
         self.frame_paths = [os.path.join(dest_dir, x) for x in sorted(os.listdir(dest_dir))]
 
-    def overlay(self, vid, start_seconds, output_path):
+    @tempdir
+    def reencode(tmpdir, self, output_path):
+        """
+        Simply reencode the video to the specified output_path.
+        """
+        _, ext = os.path.splitext(output_path)
+        output = os.path.join(tmpdir, "output%s" % ext)
+        args = [
+            "-i", self.source,
+            output
+        ]
+        ffmpeg(args)
+        shutil.move(output, output_path)
+        return Video(output_path)
+
+    @tempdir
+    def split(tmpdir, self, seconds, beginning_path, end_path, end_offset_seconds=0):
+        """
+        Split a video into two parts at `seconds`. If `end_offset_seconds` is set, cut that amount
+        of seconds off the beginning of the end part (useful for overlays).
+        """
+        _, beginning_ext = os.path.splitext(beginning_path)
+        _, end_ext = os.path.splitext(end_path)
+        beginning = os.path.join(tmpdir, "beginning%s" % beginning_ext)
+        end = os.path.join(tmpdir, "end%s" % end_ext)
+        args = [
+            "-i", self.source,
+            "-t", str(seconds),
+            beginning,
+            "-ss", str(seconds+end_offset_seconds),
+            end
+        ]
+        ffmpeg(args)
+        shutil.move(beginning, beginning_path)
+        shutil.move(end, end_path)
+        return (Video(beginning_path), Video(end_path))
+
+    @tempdir
+    def overlay(tmpdir, self, vid, start_seconds, output_path):
         """
         Overlay the contents of `vid` onto this video starting at `start_seconds`.
         """
@@ -109,69 +148,31 @@ class Video:
 
         overlay_seconds = float(vid.data["streams"][0]["duration"])
 
-        tmpdir = tempfile.mkdtemp()
-        try:
-            # Split original video into two parts, missing the overlay part
-            source_a = os.path.join(tmpdir, "source-a.mp4")
-            source_b = os.path.join(tmpdir, "source-b.mp4")
-            args = [
-                "-i", self.source,
-                "-t", str(start_seconds),
+        # Split original video into two parts, missing the overlay part
+        source_a = os.path.join(tmpdir, "source-a.mp4")
+        source_b = os.path.join(tmpdir, "source-b.mp4")
+        self.split(start_seconds, source_a, source_b, end_offset_seconds=overlay_seconds)
+
+        filenames_txt = os.path.join(tmpdir, "files.txt")
+        with open(filenames_txt, "w") as f:
+            f.writelines(["file %s\n" % x for x in (
                 source_a,
-                "-ss", str(start_seconds + overlay_seconds),
+                vid.source,
                 source_b
-            ]
-            ffmpeg(args)
+            )])
 
-            filenames_txt = os.path.join(tmpdir, "files.txt")
-            with open(filenames_txt, "w") as f:
-                f.writelines(["file %s\n" % x for x in (
-                    source_a,
-                    vid.source,
-                    source_b
-                )])
-
-            # Join the three video parts together (source 1, new bit, source 2)
-            joined = os.path.join(tmpdir, "joined.mp4")
-            args = [
-                "-f", "concat",
-                "-safe", "0",
-                "-i", filenames_txt,
-                "-c", "copy",
-                joined
-            ]
-            ffmpeg(args)
-            shutil.move(joined, output_path)
-        finally:
-            shutil.rmtree(tmpdir)
-
-        # overlay_dir = os.path.join(tmpdir, "overlay")
-        # os.mkdir(overlay_dir)
-        # vid.to_images(overlay_dir)
-        # overlay_filename = os.path.basename(vid.source)
-
-        # source_dir = os.path.join(tmpdir, "source")
-        # os.mkdir(source_dir)
-        # # @TODO: Only create `limit` frames
-        # self.to_images(source_dir)
-        # source_filename = os.path.basename(self.source)
-
-        # # Ensure that we don't try to replace more frames than exist
-        # overlay_frame_count = len(os.listdir(overlay_dir))
-        # if overlay_frame_count < limit:
-        #     limit = overlay_frame_count
-
-        # source_name, _ = os.path.splitext(source_filename)
-        # overlay_name, _ = os.path.splitext(overlay_filename)
-        # j = 1
-        # for i in range(start_frame, start_frame+limit):
-        #     file_path = os.path.join(source_dir, "%s-%03d.png" % (source_name, i))
-        #     print "overlaying %s" % file_path
-        #     os.unlink(file_path)
-        #     new_file_path = os.path.join(overlay_dir, "%s-%03d.png" % (overlay_name, j))
-        #     print "with %s" % new_file_path
-        #     shutil.copy(new_file_path, file_path)
-        #     j += 1
+        # Join the three video parts together (source 1, new bit, source 2)
+        joined = os.path.join(tmpdir, "joined.mp4")
+        args = [
+            "-f", "concat",
+            "-safe", "0",
+            "-i", filenames_txt,
+            "-c", "copy",
+            joined
+        ]
+        ffmpeg(args)
+        shutil.move(joined, output_path)
+        return Video(output_path)
 
     def insert(self, vid, start_seconds):
         """
