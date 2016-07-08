@@ -1,13 +1,11 @@
-import tempfile
-import shutil
 import os
 
 import mock
 import pytest
 import magic
 
-import ffchopper
-from ffchopper.util import tempdir
+import avchopper
+from avchopper.util import tempdir
 
 
 TEST_VID_PATH = "tests/test.mp4"
@@ -20,40 +18,40 @@ class EarlyExitException(Exception):
     pass
 
 
-@mock.patch("ffchopper.video.check_output")
+@mock.patch("avchopper.video.check_output")
 def test_ffprobe_calls_check_output(mock_check_output):
     """
     Should call check_output with the ffprobe binary and supplied arguments.
     """
     args = ["a", "b", "c"]
-    ffchopper.video.ffprobe(args)
+    avchopper.video.ffprobe(args)
     assert mock_check_output.called
-    assert mock_check_output.call_args[0][0] == [ffchopper.video.FFPROBE_BIN]+args
+    assert mock_check_output.call_args[0][0] == [avchopper.video.FFPROBE_BIN]+args
 
 
-@mock.patch("ffchopper.video.check_output", return_value=b"Hi!")
+@mock.patch("avchopper.video.check_output", return_value=b"Hi!")
 def test_ffmpeg_calls_check_output(mock_check_output):
     """
     Should call check_output with the ffmpeg binary and supplied arguments when
     capture_stdout is True.
     """
     args = ["a", "b", "c"]
-    ret = ffchopper.video.ffmpeg(args, capture_stdout=True)
+    ret = avchopper.video.ffmpeg(args, capture_stdout=True)
     assert mock_check_output.called
-    assert mock_check_output.call_args[0][0] == [ffchopper.video.FFMPEG_BIN]+args
+    assert mock_check_output.call_args[0][0] == [avchopper.video.FFMPEG_BIN]+args
     assert ret == "Hi!"
 
 
-@mock.patch("ffchopper.video.check_call")
+@mock.patch("avchopper.video.check_call")
 def test_ffmpeg_calls_check_call(mock_check_call):
     """
     Should call check_call with the ffmpeg binary and supplied carguments when
     capture_stdout is False.
     """
     args = ["a", "b", "c"]
-    ffchopper.video.ffmpeg(args, capture_stdout=False)
+    avchopper.video.ffmpeg(args, capture_stdout=False)
     assert mock_check_call.called
-    assert mock_check_call.call_args[0][0] == [ffchopper.video.FFMPEG_BIN]+args
+    assert mock_check_call.call_args[0][0] == [avchopper.video.FFMPEG_BIN]+args
 
 
 class TestVideo:
@@ -62,15 +60,15 @@ class TestVideo:
         Should raise a ValueError if a file does not exist at the path specified.
         """
         with pytest.raises(IOError):
-            ffchopper.Video("a_non_existent_file.none")
+            avchopper.Video("a_non_existent_file.none")
 
-    @mock.patch("ffchopper.video.ffprobe", return_value="{}")
+    @mock.patch("avchopper.video.ffprobe", return_value="{}")
     def test_data_calls_ffprobe(self, mock_ffprobe):
         """
         Should call ffprobe on the first 'get' of the `data` property and not
         on subsequent ones.
         """
-        vid = ffchopper.Video(TEST_VID_PATH)
+        vid = avchopper.Video(TEST_VID_PATH)
         assert not mock_ffprobe.called
         vid.data
         assert mock_ffprobe.called
@@ -82,7 +80,7 @@ class TestVideo:
         """
         Should return a dictionary containing information about the video.
         """
-        vid = ffchopper.Video(TEST_VID_PATH)
+        vid = avchopper.Video(TEST_VID_PATH)
         assert vid.data
         assert isinstance(vid.data, dict)
 
@@ -90,7 +88,7 @@ class TestVideo:
         """
         Should return a dict containing the "streams" key.
         """
-        vid = ffchopper.Video(TEST_VID_PATH)
+        vid = avchopper.Video(TEST_VID_PATH)
         assert "streams" in vid.data
 
     @tempdir
@@ -98,7 +96,7 @@ class TestVideo:
         """
         Should extract the audio from a video and save it to the specified path.
         """
-        vid = ffchopper.Video(TEST_VID_PATH)
+        vid = avchopper.Video(TEST_VID_PATH)
         audio_file = os.path.join(tempdir, "audio.aac")
         vid.extract_audio(audio_file)
         assert os.path.exists(audio_file)
@@ -110,7 +108,7 @@ class TestVideo:
         """
         Should split the video into a sequence of images.
         """
-        vid = ffchopper.Video(TEST_VID_PATH)
+        vid = avchopper.Video(TEST_VID_PATH)
         frame_count = int(vid.data["streams"][0]["nb_frames"])
         vid.to_images(tempdir, "jpg")
         files = os.listdir(tempdir)
@@ -124,7 +122,7 @@ class TestVideo:
         Should build a video from a sequence of images and return it as a Video.
         """
         output_file = os.path.join(tempdir, "output.mp4")
-        ffchopper.Video.from_images("tests/images/test-%03d.jpg", 25, output_file)
+        avchopper.Video.from_images("tests/images/test-%03d.jpg", 25, output_file)
         assert os.path.exists(output_file)
         assert magic.from_file(output_file, mime=True) == "video/mp4"
 
@@ -134,8 +132,8 @@ class TestVideo:
         """
         Should overlay a video on top of a section of the original video.
         """
-        vid = ffchopper.Video(TEST_VID_PATH)
-        vid2 = ffchopper.Video(TEST_VID_PATH)
+        vid = avchopper.Video(TEST_VID_PATH)
+        vid2 = avchopper.Video(TEST_VID_PATH)
         output_path = os.path.join(tempdir, "joined.mp4")
         vid.overlay(vid2, 1, output_path)
         assert os.path.exists(output_path)
@@ -146,8 +144,8 @@ class TestVideo:
         """
         Should accept a string as the `vid` parameter by creating a new Video with the supplied path
         """
-        vid = ffchopper.Video(TEST_VID_PATH)
-        with mock.patch("ffchopper.Video.__init__", side_effect=EarlyExitException()) as mock_const:
+        vid = avchopper.Video(TEST_VID_PATH)
+        with mock.patch("avchopper.Video.__init__", side_effect=EarlyExitException()) as mock_const:
             output_path = os.path.join(tempdir, "joined.mp4")
             with pytest.raises(EarlyExitException):
                 vid.overlay(TEST_VID_PATH, 1, output_path)
@@ -161,7 +159,7 @@ class TestVideo:
         Should convert the video to the desired encoding based on the file extension.
         """
         assert magic.from_file(TEST_VID_PATH, mime=True) == "video/mp4"
-        vid = ffchopper.Video(TEST_VID_PATH)
+        vid = avchopper.Video(TEST_VID_PATH)
         output_file = os.path.join(tempdir, "output.avi")
         vid.reencode(output_file)
         assert magic.from_file(output_file, mime=True) == "video/x-msvideo"
@@ -170,5 +168,5 @@ class TestVideo:
         """
         TODO
         """
-        vid = ffchopper.Video(TEST_VID_PATH)
+        vid = avchopper.Video(TEST_VID_PATH)
         vid.insert(vid, 1)

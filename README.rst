@@ -1,2 +1,2 @@
-.. image:: https://travis-ci.org/flyte/ffchopper.svg?branch=develop
-    :target: https://travis-ci.org/flyte/ffchopper
+.. image:: https://travis-ci.org/flyte/avchopper.svg?branch=develop
+    :target: https://travis-ci.org/flyte/avchopper
