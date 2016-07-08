@@ -12,6 +12,13 @@ import ffchopper
 TEST_VID_PATH = "tests/test.mp4"
 
 
+class EarlyExitException(Exception):
+    """
+    Exception used to exit a function when a Mock with this exception as a side effect is hit.
+    """
+    pass
+
+
 @mock.patch("ffchopper.video.check_output")
 def test_ffprobe_calls_check_output(mock_check_output):
     """
@@ -99,6 +106,7 @@ class TestVideo:
         finally:
             shutil.rmtree(tempdir)
 
+    @pytest.mark.slow
     def test_to_images(self):
         """
         Should split the video into a sequence of images.
@@ -114,6 +122,7 @@ class TestVideo:
         finally:
             shutil.rmtree(tempdir)
 
+    @pytest.mark.slow
     def test_from_images(self):
         """
         Should build a video from a sequence of images and return it as a Video.
@@ -127,6 +136,7 @@ class TestVideo:
         finally:
             shutil.rmtree(tempdir)
 
+    @pytest.mark.slow
     def test_overlay(self):
         """
         Should overlay a video on top of a section of the original video.
@@ -141,3 +151,26 @@ class TestVideo:
             assert magic.from_file(output_path, mime=True) == "video/mp4"
         finally:
             shutil.rmtree(tempdir)
+
+    def test_overlay_accepts_string_path(self):
+        """
+        Should accept a string as the `vid` parameter by creating a new Video with the supplied path
+        """
+        vid = ffchopper.Video(TEST_VID_PATH)
+        with mock.patch("ffchopper.Video.__init__", side_effect=EarlyExitException()) as mock_const:
+            tempdir = tempfile.mkdtemp()
+            try:
+                output_path = os.path.join(tempdir, "joined.mp4")
+                with pytest.raises(EarlyExitException):
+                    vid.overlay(TEST_VID_PATH, 1, output_path)
+                assert mock_const.called
+                assert mock_const.call_args[0][0] == TEST_VID_PATH
+            finally:
+                shutil.rmtree(tempdir)
+
+    def test_insert(self):
+        """
+        TODO
+        """
+        vid = ffchopper.Video(TEST_VID_PATH)
+        vid.insert(vid, 1)

@@ -102,8 +102,7 @@ class Video:
 
     def overlay(self, vid, start_seconds, output_path):
         """
-        Overlay the contents of `vid` onto this video starting at `start_frame`
-        for `limit` seconds.
+        Overlay the contents of `vid` onto this video starting at `start_seconds`.
         """
         if isinstance(vid, str):
             vid = Video(vid)
@@ -174,7 +173,7 @@ class Video:
         #     shutil.copy(new_file_path, file_path)
         #     j += 1
 
-    def insert(self, vid, start_frame, limit=None):
+    def insert(self, vid, start_seconds):
         """
         Insert the contents of `vid` into this video starting at `start_frame`
         for `limit` frames.
