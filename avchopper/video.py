@@ -174,6 +174,28 @@ class Video:
         shutil.move(joined, output_path)
         return Video(output_path)
 
+    @tempdir
+    def overlay_image(
+            tmpdir, self, img_path, start_seconds, duration, output_path, position=(0, 0)):
+        """
+        Overlay an image from `start_seconds` for `duration` seconds at `position` vector.
+        """
+        _, ext = os.path.splitext(output_path)
+        output = os.path.join(tmpdir, "output%s" % ext)
+        args = [
+            "-i", self.source,
+            "-i", img_path,
+            "-filter_complex", "[0:v][1:v] overlay=%s:enable='between(t,%d,%d)'" % (
+                ":".join(position),
+                start_seconds,
+                duration,
+                output
+            )
+        ]
+        ffmpeg(args)
+        shutil.move(output, output_path)
+        return Video(output_path)
+
     def insert(self, vid, start_seconds):
         """
         Insert the contents of `vid` into this video starting at `start_frame`
