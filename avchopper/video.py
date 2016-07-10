@@ -139,39 +139,53 @@ class Video:
         return (Video(beginning_path), Video(end_path))
 
     @tempdir
-    def overlay(tmpdir, self, vid, start_seconds, output_path):
+    def overlay(tmpdir, self, vid, start_seconds, output_path, overlay_duration=None):
         """
         Overlay the contents of `vid` onto this video starting at `start_seconds`.
         """
         if isinstance(vid, str):
             vid = Video(vid)
 
-        overlay_seconds = float(vid.data["streams"][0]["duration"])
+        _, ext = os.path.splitext(output_path)
+        duration = overlay_duration or float(vid.data["streams"][0]["duration"])
+        output = os.path.join(tmpdir, "overlay%s" % ext)
+        x, y = (0, 0)
 
-        # Split original video into two parts, missing the overlay part
-        source_a = os.path.join(tmpdir, "source-a.mp4")
-        source_b = os.path.join(tmpdir, "source-b.mp4")
-        self.split(start_seconds, source_a, source_b, end_offset_seconds=overlay_seconds)
-
-        filenames_txt = os.path.join(tmpdir, "files.txt")
-        with open(filenames_txt, "w") as f:
-            f.writelines(["file %s\n" % x for x in (
-                source_a,
-                vid.source,
-                source_b
-            )])
-
-        # Join the three video parts together (source 1, new bit, source 2)
-        joined = os.path.join(tmpdir, "joined.mp4")
-        args = [
-            "-f", "concat",
-            "-safe", "0",
-            "-i", filenames_txt,
-            "-c", "copy",
-            joined
+        cmd = [
+            "-i", self.source,
+            "-i", vid.source,
+            "-filter_complex",
+            "overlay=%d:%d:enable='between(t,%d,%d)'" % (
+                x, y, start_seconds, start_seconds+duration
+            ),
+            output
         ]
-        ffmpeg(args)
-        shutil.move(joined, output_path)
+        ffmpeg(cmd)
+
+        # # Split original video into two parts, missing the overlay part
+        # source_a = os.path.join(tmpdir, "source-a.mp4")
+        # source_b = os.path.join(tmpdir, "source-b.mp4")
+        # self.split(start_seconds, source_a, source_b, end_offset_seconds=overlay_duration)
+
+        # filenames_txt = os.path.join(tmpdir, "files.txt")
+        # with open(filenames_txt, "w") as f:
+        #     f.writelines(["file %s\n" % x for x in (
+        #         source_a,
+        #         vid.source,
+        #         source_b
+        #     )])
+
+        # # Join the three video parts together (source 1, new bit, source 2)
+        # joined = os.path.join(tmpdir, "joined.mp4")
+        # args = [
+        #     "-f", "concat",
+        #     "-safe", "0",
+        #     "-i", filenames_txt,
+        #     "-c", "copy",
+        #     joined
+        # ]
+        # ffmpeg(args)
+        shutil.move(output, output_path)
         return Video(output_path)
 
     @tempdir
