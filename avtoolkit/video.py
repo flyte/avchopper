@@ -2,7 +2,6 @@ from __future__ import print_function
 import os
 import locale
 import json
-import shutil
 from subprocess import check_call, check_output
 
 from .util import tempdir
@@ -101,113 +100,66 @@ class Video:
         ffmpeg(args)
         self.frame_paths = [os.path.join(dest_dir, x) for x in sorted(os.listdir(dest_dir))]
 
-    @tempdir
-    def reencode(tmpdir, self, output_path):
+    def reencode(self, output_path):
         """
         Simply reencode the video to the specified output_path.
         """
-        _, ext = os.path.splitext(output_path)
-        output = os.path.join(tmpdir, "output%s" % ext)
-        args = [
+        ffmpeg([
             "-i", self.source,
-            output
-        ]
-        ffmpeg(args)
-        shutil.move(output, output_path)
+            output_path
+        ])
         return Video(output_path)
 
-    @tempdir
-    def split(tmpdir, self, seconds, beginning_path, end_path, end_offset_seconds=0):
+    def split(self, seconds, beginning_path, end_path):
         """
-        Split a video into two parts at `seconds`. If `end_offset_seconds` is set, cut that amount
-        of seconds off the beginning of the end part (useful for overlays).
+        Split a video into two parts at `seconds`.
         """
-        _, beginning_ext = os.path.splitext(beginning_path)
-        _, end_ext = os.path.splitext(end_path)
-        beginning = os.path.join(tmpdir, "beginning%s" % beginning_ext)
-        end = os.path.join(tmpdir, "end%s" % end_ext)
-        args = [
+        ffmpeg([
             "-i", self.source,
             "-t", str(seconds),
-            beginning,
-            "-ss", str(seconds+end_offset_seconds),
-            end
-        ]
-        ffmpeg(args)
-        shutil.move(beginning, beginning_path)
-        shutil.move(end, end_path)
+            beginning_path,
+            "-ss", str(seconds),
+            end_path
+        ])
         return (Video(beginning_path), Video(end_path))
 
-    @tempdir
-    def overlay(tmpdir, self, vid, start_seconds, output_path, overlay_duration=None):
+    def overlay(self, vid, start_seconds, output_path, overlay_duration=None, position=(0, 0)):
         """
         Overlay the contents of `vid` onto this video starting at `start_seconds`.
         """
-        if isinstance(vid, str):
-            vid = Video(vid)
+        try:
+            duration = overlay_duration or float(vid.data["streams"][0]["duration"])
+        except KeyError:
+            raise AttributeError("Must provide overlay_duration if the overlay is an image.")
 
-        _, ext = os.path.splitext(output_path)
-        duration = overlay_duration or float(vid.data["streams"][0]["duration"])
-        output = os.path.join(tmpdir, "overlay%s" % ext)
-        x, y = (0, 0)
-
-        cmd = [
+        ffmpeg([
             "-i", self.source,
             "-i", vid.source,
             "-filter_complex",
-            "overlay=%d:%d:enable='between(t,%d,%d)'" % (
-                x, y, start_seconds, start_seconds+duration
+            "overlay=%s:enable='between(t,%d,%d)'" % (
+                ":".join(map(str, position)), start_seconds, start_seconds+duration
             ),
-            output
-        ]
-        ffmpeg(cmd)
-
-        # # Split original video into two parts, missing the overlay part
-        # source_a = os.path.join(tmpdir, "source-a.mp4")
-        # source_b = os.path.join(tmpdir, "source-b.mp4")
-        # self.split(start_seconds, source_a, source_b, end_offset_seconds=overlay_duration)
-
-        # filenames_txt = os.path.join(tmpdir, "files.txt")
-        # with open(filenames_txt, "w") as f:
-        #     f.writelines(["file %s\n" % x for x in (
-        #         source_a,
-        #         vid.source,
-        #         source_b
-        #     )])
-
-        # # Join the three video parts together (source 1, new bit, source 2)
-        # joined = os.path.join(tmpdir, "joined.mp4")
-        # args = [
-        #     "-f", "concat",
-        #     "-safe", "0",
-        #     "-i", filenames_txt,
-        #     "-c", "copy",
-        #     joined
-        # ]
-        # ffmpeg(args)
-        shutil.move(output, output_path)
+            output_path
+        ])
         return Video(output_path)
 
     @tempdir
-    def overlay_image(
-            tmpdir, self, img_path, start_seconds, duration, output_path, position=(0, 0)):
+    def concatenate(tmpdir, self, vid, output_path, reencode=True):
         """
-        Overlay an image from `start_seconds` for `duration` seconds at `position` vector.
+        Concatenate `vid` onto the end of this Video.
         """
-        _, ext = os.path.splitext(output_path)
-        output = os.path.join(tmpdir, "output%s" % ext)
-        args = [
-            "-i", self.source,
-            "-i", img_path,
-            "-filter_complex", "[0:v][1:v] overlay=%s:enable='between(t,%d,%d)'" % (
-                ":".join(position),
-                start_seconds,
-                duration,
-                output
-            )
+        filenames = os.path.join(tmpdir, "files.txt")
+        with open(filenames, "w") as f:
+            f.writelines(["file %s\n" % x for x in (self.source, vid.source)])
+        cmd = [
+            "-f", "concat",
+            "-safe", "0",
+            "-i", filenames
         ]
-        ffmpeg(args)
-        shutil.move(output, output_path)
+        if not reencode:
+            cmd += ["-c", "copy"]
+        cmd += [output_path]
+        ffmpeg(cmd)
         return Video(output_path)
 
     def insert(self, vid, start_seconds):
@@ -216,3 +168,26 @@ class Video:
         for `limit` frames.
         """
         pass
+
+    def trim_start(self, vid, seconds):
+        """
+        Remove `seconds` from the beginning of the video.
+        """
+        pass
+
+    def trim_end(self, vid, seconds):
+        """
+        Remove `seconds` from the end of the video.
+        """
+        pass
+
+    def resize(self, new_size, output_path):
+        """
+        Resize this video to `new_size`.
+        """
+        ffmpeg([
+            "-i", self.source,
+            "-s", "x".join(map(str, new_size)),
+            output_path
+        ])
+        return Video(output_path)

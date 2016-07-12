@@ -9,7 +9,7 @@ def tempdir(func):
     def wrapper(*args, **kwargs):
         tmpdir = tempfile.mkdtemp()
         try:
-            func(tmpdir, *args, **kwargs)
+            return func(tmpdir, *args, **kwargs)
         finally:
             shutil.rmtree(tmpdir)
     return wrapper

@@ -1,4 +1,5 @@
 import os
+from decimal import Decimal
 
 import mock
 import pytest
@@ -9,6 +10,7 @@ from avtoolkit.util import tempdir
 
 
 TEST_VID_PATH = "tests/test.mp4"
+TEST_IMG_PATH = "tests/tux.png"
 
 
 class EarlyExitException(Exception):
@@ -52,6 +54,19 @@ def test_ffmpeg_calls_check_call(mock_check_call):
     avtoolkit.video.ffmpeg(args, capture_stdout=False)
     assert mock_check_call.called
     assert mock_check_call.call_args[0][0] == [avtoolkit.video.FFMPEG_BIN]+args
+
+
+class TestUtil:
+    def test_tempdir(self):
+        """
+        Should create a temporary directory and remove it afterwards.
+        """
+        @tempdir
+        def test(tmpdir):
+            assert os.path.exists(tmpdir)
+            return tmpdir
+        tmpdir = test()
+        assert not os.path.exists(tmpdir)
 
 
 class TestVideo:
@@ -139,18 +154,23 @@ class TestVideo:
         assert os.path.exists(output_path)
         assert magic.from_file(output_path, mime=True) == "video/mp4"
 
+    @pytest.mark.slow
     @tempdir
-    def test_overlay_accepts_string_path(tempdir, self):
+    def test_overlay_with_image(tempdir, self):
         """
-        Should accept a string as the `vid` parameter by creating a new Video with the supplied path
+        Should overlay an image on top of a section of the original video.
         """
         vid = avtoolkit.Video(TEST_VID_PATH)
-        with mock.patch("avtoolkit.Video.__init__", side_effect=EarlyExitException()) as mock_const:
-            output_path = os.path.join(tempdir, "joined.mp4")
-            with pytest.raises(EarlyExitException):
-                vid.overlay(TEST_VID_PATH, 1, output_path)
-            assert mock_const.called
-            assert mock_const.call_args[0][0] == TEST_VID_PATH
+        img = avtoolkit.Video(TEST_IMG_PATH)
+        output_path = os.path.join(tempdir, "output.mp4")
+
+        # Should raise an AttributeError if `overlay_duration` is not provided with an image.
+        with pytest.raises(AttributeError):
+            vid.overlay(img, 2, output_path)
+
+        vid.overlay(img, 2, output_path, overlay_duration=2)
+        assert os.path.exists(output_path)
+        assert magic.from_file(output_path, mime=True) == "video/mp4"
 
     @pytest.mark.slow
     @tempdir
@@ -163,6 +183,32 @@ class TestVideo:
         output_file = os.path.join(tempdir, "output.avi")
         vid.reencode(output_file)
         assert magic.from_file(output_file, mime=True) == "video/x-msvideo"
+
+    @pytest.mark.slow
+    @tempdir
+    def test_split(tempdir, self):
+        """
+        Should split a video at a given second and return two Videos.
+        """
+        a = os.path.join(tempdir, "a.mp4")
+        b = os.path.join(tempdir, "b.mp4")
+        vid = avtoolkit.Video(TEST_VID_PATH)
+        original_length = Decimal(vid.data["streams"][0]["duration"])
+        split_seconds = Decimal("2.52")
+
+        result = vid.split(split_seconds, a, b)
+        assert isinstance(result, tuple)
+        vid_a, vid_b = result
+        for output in (a, b):
+            assert os.path.exists(output)
+            assert magic.from_file(output, mime=True) == "video/mp4"
+        assert Decimal(vid_a.data["streams"][0]["duration"]) == split_seconds
+        assert Decimal(vid_b.data["streams"][0]["duration"]) == original_length - split_seconds
+
+    @pytest.mark.slow
+    @tempdir
+    def test_concatenate(tempdir, self):
+        pass
 
     def test_insert(self):
         """
