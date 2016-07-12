@@ -20,6 +20,15 @@ class EarlyExitException(Exception):
     pass
 
 
+def percentage_difference(a, b):
+    """
+    Calculate the percentage difference between two numbers.
+    """
+    if any(x == 0 for x in (a, b)):
+        raise ValueError("Cannot compute difference if either number is zero.")
+    return (float(abs(a-b))/float(a))*100
+
+
 @mock.patch("avtoolkit.video.check_output")
 def test_ffprobe_calls_check_output(mock_check_output):
     """
@@ -208,11 +217,92 @@ class TestVideo:
     @pytest.mark.slow
     @tempdir
     def test_concatenate(tempdir, self):
-        pass
-
-    def test_insert(self):
         """
-        TODO
+        Should concatenate three videos together and reencode them.
         """
         vid = avtoolkit.Video(TEST_VID_PATH)
-        vid.insert(vid, 1)
+        length = Decimal(vid.data["streams"][0]["duration"])
+        output_path = os.path.join(tempdir, "joined.mp4")
+        joined = vid.concatenate(output_path, before=(vid,), after=(vid,))
+        assert os.path.exists(output_path)
+        assert magic.from_file(output_path, mime=True) == "video/mp4"
+        new_length = Decimal(joined.data["streams"][0]["duration"])
+        assert percentage_difference(new_length, length*3) < 1
+
+    @tempdir
+    def test_concatenate_no_reencode(tempdir, self):
+        """
+        Should concatenate three videos together and not reencode them.
+        """
+        vid = avtoolkit.Video(TEST_VID_PATH)
+        length = Decimal(vid.data["streams"][0]["duration"])
+        output_path = os.path.join(tempdir, "joined.mp4")
+        joined = vid.concatenate(output_path, before=(vid,), after=(vid,), reencode=False)
+        assert os.path.exists(output_path)
+        assert magic.from_file(output_path, mime=True) == "video/mp4"
+        new_length = Decimal(joined.data["streams"][0]["duration"])
+        assert percentage_difference(new_length, length*3) < 1
+
+    @pytest.mark.slow
+    @tempdir
+    def test_scale(tempdir, self):
+        """
+        Should scale a video.
+        """
+        vid = avtoolkit.Video(TEST_VID_PATH)
+        orig_x = int(vid.data["streams"][0]["width"])
+        orig_y = int(vid.data["streams"][0]["height"])
+        new_x = orig_x/2
+        new_y = orig_y/2
+        output = os.path.join(tempdir, "scaled.mp4")
+        scaled = vid.scale((new_x, new_y), output)
+        assert os.path.exists(output)
+        assert magic.from_file(output, mime=True) == "video/mp4"
+        assert int(scaled.data["streams"][0]["width"]) == new_x
+        assert int(scaled.data["streams"][0]["height"]) == new_y
+
+    @pytest.mark.slow
+    @tempdir
+    def test_insert(tempdir, self):
+        """
+        Should split the video at the given second and insert a video in the middle.
+        """
+        vid = avtoolkit.Video(TEST_VID_PATH)
+        original_length = Decimal(vid.data["streams"][0]["duration"])
+        output_path = os.path.join(tempdir, "inserted.mp4")
+
+        result = vid.insert(vid, 2.5, output_path, reencode=False)
+        assert os.path.exists(output_path)
+        assert magic.from_file(output_path, mime=True) == "video/mp4"
+        new_length = Decimal(result.data["streams"][0]["duration"])
+        assert percentage_difference(new_length, original_length*2) < 1
+
+    @pytest.mark.slow
+    @tempdir
+    def test_trim_start(tempdir, self):
+        """
+        Should trim some seconds off the beginning of the video.
+        """
+        vid = avtoolkit.Video(TEST_VID_PATH)
+        original_length = Decimal(vid.data["streams"][0]["duration"])
+        output_path = os.path.join(tempdir, "trimmed.mp4")
+        trim_secs = 3
+
+        trimmed = vid.trim_start(trim_secs, output_path)
+        new_length = Decimal(trimmed.data["streams"][0]["duration"])
+        assert new_length == (original_length-trim_secs)
+
+    @pytest.mark.slow
+    @tempdir
+    def test_trim_end(tempdir, self):
+        """
+        Should trim some seconds off the beginning of the video.
+        """
+        vid = avtoolkit.Video(TEST_VID_PATH)
+        original_length = Decimal(vid.data["streams"][0]["duration"])
+        output_path = os.path.join(tempdir, "trimmed.mp4")
+        trim_secs = 3
+
+        trimmed = vid.trim_end(trim_secs, output_path)
+        new_length = Decimal(trimmed.data["streams"][0]["duration"])
+        assert new_length == (original_length-trim_secs)

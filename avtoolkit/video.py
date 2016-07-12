@@ -144,13 +144,14 @@ class Video:
         return Video(output_path)
 
     @tempdir
-    def concatenate(tmpdir, self, vid, output_path, reencode=True):
+    def concatenate(tmpdir, self, output_path, before=[], after=[], reencode=True):
         """
-        Concatenate `vid` onto the end of this Video.
+        Concatenate `before` Videos onto the beginning of this Video and `after` ones onto the end.
         """
+        timeline = tuple(before) + (self,) + tuple(after)
         filenames = os.path.join(tmpdir, "files.txt")
         with open(filenames, "w") as f:
-            f.writelines(["file %s\n" % x for x in (self.source, vid.source)])
+            f.writelines(["file %s\n" % vid.source for vid in timeline])
         cmd = [
             "-f", "concat",
             "-safe", "0",
@@ -162,32 +163,49 @@ class Video:
         ffmpeg(cmd)
         return Video(output_path)
 
-    def insert(self, vid, start_seconds):
+    @tempdir
+    def insert(tmpdir, self, vid, start_seconds, output_path, reencode=True):
         """
         Insert the contents of `vid` into this video starting at `start_frame`
         for `limit` frames.
         """
-        pass
+        _, ext = os.path.splitext(self.source)
+        a_path = os.path.join(tmpdir, "a%s" % ext)
+        b_path = os.path.join(tmpdir, "b%s" % ext)
+        a, b = self.split(start_seconds, a_path, b_path)
+        vid.concatenate(output_path, before=(a,), after=(b,), reencode=reencode)
+        return Video(output_path)
 
-    def trim_start(self, vid, seconds):
+    def trim_start(self, seconds, output_path):
         """
         Remove `seconds` from the beginning of the video.
         """
-        pass
+        ffmpeg([
+            "-ss", str(seconds),
+            "-i", self.source,
+            output_path
+        ])
+        return Video(output_path)
 
-    def trim_end(self, vid, seconds):
+    def trim_end(self, seconds, output_path):
         """
         Remove `seconds` from the end of the video.
         """
-        pass
+        length = float(self.data["streams"][0]["duration"])
+        ffmpeg([
+            "-t", str(length-seconds),
+            "-i", self.source,
+            output_path
+        ])
+        return Video(output_path)
 
-    def resize(self, new_size, output_path):
+    def scale(self, new_size, output_path):
         """
-        Resize this video to `new_size`.
+        Scale this video to `new_size`.
         """
         ffmpeg([
             "-i", self.source,
-            "-s", "x".join(map(str, new_size)),
+            "-vf", "scale=%s" % ":".join(map(str, new_size)),
             output_path
         ])
         return Video(output_path)
