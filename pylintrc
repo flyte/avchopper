@@ -1,0 +1,10 @@
+[MASTER]
+reports=no
+
+# Reasons disabled:
+# locally-disabled - it spams too much
+disable=
+  locally-disabled,
+
+[DESIGN]
+max-args=6

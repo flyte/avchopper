@@ -77,6 +77,19 @@ class TestUtil:
         tmpdir = test()
         assert not os.path.exists(tmpdir)
 
+    def test_tempdir_already_provided(self, tmpdir):
+        """
+        Should do nothing when a tempdir is already provided.
+        """
+        @tempdir
+        def test(tmpdir):
+            assert os.path.exists(tmpdir)
+            return tmpdir
+        tmpdir = str(tmpdir)
+        assert os.path.exists(tmpdir)
+        tmpdir = test(tmpdir=tmpdir)
+        assert os.path.exists(tmpdir)
+
 
 class TestVideo:
     def test_video_exists(self):
@@ -115,63 +128,58 @@ class TestVideo:
         vid = avtoolkit.Video(TEST_VID_PATH)
         assert "streams" in vid.data
 
-    @tempdir
-    def test_extract_audio(tempdir, self):
+    def test_extract_audio(self, tmpdir):
         """
         Should extract the audio from a video and save it to the specified path.
         """
         vid = avtoolkit.Video(TEST_VID_PATH)
-        audio_file = os.path.join(tempdir, "audio.aac")
+        audio_file = os.path.join(str(tmpdir), "audio.aac")
         vid.extract_audio(audio_file)
         assert os.path.exists(audio_file)
         assert magic.from_file(audio_file, mime=True) == "audio/x-hx-aac-adts"
 
     @pytest.mark.slow
-    @tempdir
-    def test_to_images(tempdir, self):
+    def test_to_images(self, tmpdir):
         """
         Should split the video into a sequence of images.
         """
         vid = avtoolkit.Video(TEST_VID_PATH)
         frame_count = int(vid.data["streams"][0]["nb_frames"])
-        vid.to_images(tempdir, "jpg")
-        files = os.listdir(tempdir)
+        vid.to_images(str(tmpdir), "jpg")
+        files = os.listdir(str(tmpdir))
         assert len(files) == frame_count
-        assert magic.from_file(os.path.join(tempdir, files[0]), mime=True) == "image/jpeg"
+        assert magic.from_file(os.path.join(str(tmpdir), files[0]), mime=True) == "image/jpeg"
 
     @pytest.mark.slow
-    @tempdir
-    def test_from_images(tempdir, self):
+    def test_from_images(self, tmpdir):
         """
         Should build a video from a sequence of images and return it as a Video.
         """
-        output_file = os.path.join(tempdir, "output.mp4")
+        output_file = os.path.join(str(tmpdir), "output.mp4")
         avtoolkit.Video.from_images("tests/images/test-%03d.jpg", 25, output_file)
         assert os.path.exists(output_file)
         assert magic.from_file(output_file, mime=True) == "video/mp4"
 
     @pytest.mark.slow
-    @tempdir
-    def test_overlay(tempdir, self):
+    def test_overlay(self, tmpdir):
         """
         Should overlay a video on top of a section of the original video.
         """
         vid = avtoolkit.Video(TEST_VID_PATH)
         vid2 = avtoolkit.Video(TEST_VID_PATH)
-        output_path = os.path.join(tempdir, "joined.mp4")
+        output_path = os.path.join(str(tmpdir), "joined.mp4")
         vid.overlay(vid2, 1, output_path)
         assert os.path.exists(output_path)
         assert magic.from_file(output_path, mime=True) == "video/mp4"
 
     @pytest.mark.slow
-    @tempdir
-    def test_overlay_with_image(tempdir, self):
+    def test_overlay_with_image(self, tmpdir):
         """
         Should overlay an image on top of a section of the original video.
         """
         vid = avtoolkit.Video(TEST_VID_PATH)
         img = avtoolkit.Video(TEST_IMG_PATH)
-        output_path = os.path.join(tempdir, "output.mp4")
+        output_path = os.path.join(str(tmpdir), "output.mp4")
 
         # Should raise an AttributeError if `overlay_duration` is not provided with an image.
         with pytest.raises(AttributeError):
@@ -182,25 +190,23 @@ class TestVideo:
         assert magic.from_file(output_path, mime=True) == "video/mp4"
 
     @pytest.mark.slow
-    @tempdir
-    def test_reencode(tempdir, self):
+    def test_reencode(self, tmpdir):
         """
         Should convert the video to the desired encoding based on the file extension.
         """
         assert magic.from_file(TEST_VID_PATH, mime=True) == "video/mp4"
         vid = avtoolkit.Video(TEST_VID_PATH)
-        output_file = os.path.join(tempdir, "output.avi")
+        output_file = os.path.join(str(tmpdir), "output.avi")
         vid.reencode(output_file)
         assert magic.from_file(output_file, mime=True) == "video/x-msvideo"
 
     @pytest.mark.slow
-    @tempdir
-    def test_split(tempdir, self):
+    def test_split(self, tmpdir):
         """
         Should split a video at a given second and return two Videos.
         """
-        a = os.path.join(tempdir, "a.mp4")
-        b = os.path.join(tempdir, "b.mp4")
+        a = os.path.join(str(tmpdir), "a.mp4")
+        b = os.path.join(str(tmpdir), "b.mp4")
         vid = avtoolkit.Video(TEST_VID_PATH)
         original_length = Decimal(vid.data["streams"][0]["duration"])
         split_seconds = Decimal("2.52")
@@ -215,37 +221,43 @@ class TestVideo:
         assert Decimal(vid_b.data["streams"][0]["duration"]) == original_length - split_seconds
 
     @pytest.mark.slow
-    @tempdir
-    def test_concatenate(tempdir, self):
+    def test_concatenate(self, tmpdir):
         """
         Should concatenate three videos together and reencode them.
         """
         vid = avtoolkit.Video(TEST_VID_PATH)
         length = Decimal(vid.data["streams"][0]["duration"])
-        output_path = os.path.join(tempdir, "joined.mp4")
+        output_path = os.path.join(str(tmpdir), "joined.mp4")
         joined = vid.concatenate(output_path, before=(vid,), after=(vid,))
         assert os.path.exists(output_path)
         assert magic.from_file(output_path, mime=True) == "video/mp4"
         new_length = Decimal(joined.data["streams"][0]["duration"])
         assert percentage_difference(new_length, length*3) < 1
 
-    @tempdir
-    def test_concatenate_no_reencode(tempdir, self):
+
+    def test_concatenate_no_reencode(self, tmpdir):
         """
         Should concatenate three videos together and not reencode them.
         """
         vid = avtoolkit.Video(TEST_VID_PATH)
         length = Decimal(vid.data["streams"][0]["duration"])
-        output_path = os.path.join(tempdir, "joined.mp4")
+        output_path = os.path.join(str(tmpdir), "joined.mp4")
         joined = vid.concatenate(output_path, before=(vid,), after=(vid,), reencode=False)
         assert os.path.exists(output_path)
         assert magic.from_file(output_path, mime=True) == "video/mp4"
         new_length = Decimal(joined.data["streams"][0]["duration"])
         assert percentage_difference(new_length, length*3) < 1
 
+    def test_concatenate_no_videos(self):
+        """
+        Should raise a ValueError if we don't provide videos to concatenate with.
+        """
+        vid = avtoolkit.Video(TEST_VID_PATH)
+        with pytest.raises(ValueError):
+            vid.concatenate("/dev/null")
+
     @pytest.mark.slow
-    @tempdir
-    def test_scale(tempdir, self):
+    def test_scale(self, tmpdir):
         """
         Should scale a video.
         """
@@ -254,7 +266,7 @@ class TestVideo:
         orig_y = int(vid.data["streams"][0]["height"])
         new_x = orig_x/2
         new_y = orig_y/2
-        output = os.path.join(tempdir, "scaled.mp4")
+        output = os.path.join(str(tmpdir), "scaled.mp4")
         scaled = vid.scale((new_x, new_y), output)
         assert os.path.exists(output)
         assert magic.from_file(output, mime=True) == "video/mp4"
@@ -262,14 +274,13 @@ class TestVideo:
         assert int(scaled.data["streams"][0]["height"]) == new_y
 
     @pytest.mark.slow
-    @tempdir
-    def test_insert(tempdir, self):
+    def test_insert(self, tmpdir):
         """
         Should split the video at the given second and insert a video in the middle.
         """
         vid = avtoolkit.Video(TEST_VID_PATH)
         original_length = Decimal(vid.data["streams"][0]["duration"])
-        output_path = os.path.join(tempdir, "inserted.mp4")
+        output_path = os.path.join(str(tmpdir), "inserted.mp4")
 
         result = vid.insert(vid, 2.5, output_path, reencode=False)
         assert os.path.exists(output_path)
@@ -278,14 +289,13 @@ class TestVideo:
         assert percentage_difference(new_length, original_length*2) < 1
 
     @pytest.mark.slow
-    @tempdir
-    def test_trim_start(tempdir, self):
+    def test_trim_start(self, tmpdir):
         """
         Should trim some seconds off the beginning of the video.
         """
         vid = avtoolkit.Video(TEST_VID_PATH)
         original_length = Decimal(vid.data["streams"][0]["duration"])
-        output_path = os.path.join(tempdir, "trimmed.mp4")
+        output_path = os.path.join(str(tmpdir), "trimmed.mp4")
         trim_secs = 3
 
         trimmed = vid.trim_start(trim_secs, output_path)
@@ -293,14 +303,13 @@ class TestVideo:
         assert new_length == (original_length-trim_secs)
 
     @pytest.mark.slow
-    @tempdir
-    def test_trim_end(tempdir, self):
+    def test_trim_end(self, tmpdir):
         """
         Should trim some seconds off the beginning of the video.
         """
         vid = avtoolkit.Video(TEST_VID_PATH)
         original_length = Decimal(vid.data["streams"][0]["duration"])
-        output_path = os.path.join(tempdir, "trimmed.mp4")
+        output_path = os.path.join(str(tmpdir), "trimmed.mp4")
         trim_secs = 3
 
         trimmed = vid.trim_end(trim_secs, output_path)

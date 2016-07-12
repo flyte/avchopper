@@ -1,3 +1,9 @@
+"""
+avtoolkit.video
+
+Video functions for the AV Toolkit.
+"""
+
 from __future__ import print_function
 import os
 import locale
@@ -30,7 +36,10 @@ def ffprobe(args):
     return check_output_decoded([FFPROBE_BIN]+args, stderr=DEV_NULL)
 
 
-class Video:
+class Video(object):
+    """
+    Represents a single video.
+    """
     def __init__(self, source):
         if not os.path.exists(source):
             raise IOError("File does not exist at %r" % source)
@@ -40,6 +49,9 @@ class Video:
 
     @property
     def data(self):
+        """
+        Uses ffprobe to gather data about the video. Uses stored data if available.
+        """
         if self._data is None:
             self._data = self.probe(self.source)
         return self._data
@@ -98,7 +110,7 @@ class Video:
         ]
         print("Running command: %r" % " ".join(args))
         ffmpeg(args)
-        self.frame_paths = [os.path.join(dest_dir, x) for x in sorted(os.listdir(dest_dir))]
+        self._frame_paths = [os.path.join(dest_dir, x) for x in sorted(os.listdir(dest_dir))]
 
     def reencode(self, output_path):
         """
@@ -144,14 +156,21 @@ class Video:
         return Video(output_path)
 
     @tempdir
-    def concatenate(tmpdir, self, output_path, before=[], after=[], reencode=True):
+    def concatenate(self, output_path, tmpdir, before=None, after=None, reencode=True):
         """
         Concatenate `before` Videos onto the beginning of this Video and `after` ones onto the end.
         """
+        if before is None:
+            before = []
+        if after is None:
+            after = []
+        if not (before or after):
+            raise ValueError("Must provide videos to concatenate with!")
+
         timeline = tuple(before) + (self,) + tuple(after)
         filenames = os.path.join(tmpdir, "files.txt")
-        with open(filenames, "w") as f:
-            f.writelines(["file %s\n" % vid.source for vid in timeline])
+        with open(filenames, "w") as fdesc:
+            fdesc.writelines(["file %s\n" % vid.source for vid in timeline])
         cmd = [
             "-f", "concat",
             "-safe", "0",
@@ -164,7 +183,7 @@ class Video:
         return Video(output_path)
 
     @tempdir
-    def insert(tmpdir, self, vid, start_seconds, output_path, reencode=True):
+    def insert(self, vid, start_seconds, output_path, tmpdir, reencode=True):
         """
         Insert the contents of `vid` into this video starting at `start_frame`
         for `limit` frames.
@@ -172,8 +191,8 @@ class Video:
         _, ext = os.path.splitext(self.source)
         a_path = os.path.join(tmpdir, "a%s" % ext)
         b_path = os.path.join(tmpdir, "b%s" % ext)
-        a, b = self.split(start_seconds, a_path, b_path)
-        vid.concatenate(output_path, before=(a,), after=(b,), reencode=reencode)
+        part_a, part_b = self.split(start_seconds, a_path, b_path)
+        vid.concatenate(output_path, before=(part_a,), after=(part_b,), reencode=reencode)
         return Video(output_path)
 
     def trim_start(self, seconds, output_path):
