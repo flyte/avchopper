@@ -1,5 +1,5 @@
 """
-Setuptools script for the avchopper library.
+Setuptools script for the avtoolkit library.
 """
 
 import os
@@ -15,7 +15,7 @@ except ImportError:
 open_local = lambda path: open(os.path.join(os.path.dirname(__file__), path))
 
 config = {
-    "name": "avchopper",
+    "name": "avtoolkit",
     "version": "0.0.1",
     "namespace_packages": [],
     "packages": find_packages(exclude=[
