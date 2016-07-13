@@ -40,13 +40,13 @@ class Video(object):
     """
     Represents a single video.
     """
-    def __init__(self, source, intermediate_file=None):
+    def __init__(self, source):
         if not os.path.exists(source):
             raise IOError("File does not exist at %r" % source)
         self.source = os.path.abspath(source)
         self.dirname = os.path.dirname(self.source)
         _, self.ext = os.path.splitext(self.source)
-        self.intermediate_file = intermediate_file
+        self.intermediate_file = None
         self._data = None
         self._frame_paths = []
 

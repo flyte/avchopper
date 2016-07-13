@@ -43,6 +43,7 @@ def chainable(func):
             _, output_path = tempfile.mkstemp(
                 dir=self.dirname, prefix=func.__name__, suffix=self.ext)
             kwargs["output_path"] = output_path
+        ret = None
         try:
             ret = func(*args, **kwargs)
         except:
@@ -52,7 +53,7 @@ def chainable(func):
         finally:
             if self.intermediate_file is not None:
                 os.unlink(self.intermediate_file)
-            if intermediate_required:
+            if intermediate_required and ret is not None:
                 ret.intermediate_file = output_path
         return ret
     return wrapper

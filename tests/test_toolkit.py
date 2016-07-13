@@ -6,7 +6,7 @@ import pytest
 import magic
 
 import avtoolkit
-from avtoolkit.util import tempdir
+from avtoolkit.util import tempdir, chainable
 
 
 TEST_VID_PATH = "tests/test.mp4"
@@ -89,6 +89,51 @@ class TestUtil:
         assert os.path.exists(tmpdir)
         tmpdir = test(tmpdir=tmpdir)
         assert os.path.exists(tmpdir)
+
+    def test_chainable(self, tmpdir):
+        """
+        Should allow for chaining operations without specifying output_path for the intermediate
+        functions.
+        """
+        class Video(object):
+            def __init__(self):
+                self.ext = ".mp4"
+                self.dirname = str(tmpdir)
+                self.intermediate_file = None
+
+            @chainable
+            def test(self, output_path=None):
+                assert os.path.exists(output_path)
+                return Video()
+
+        output_path = os.path.join(str(tmpdir), "output.mp4")
+        open(output_path, "a").close()
+        vid = Video()
+        vid.test().test().test(output_path=output_path)
+
+    def test_chainable_with_exception(self, tmpdir):
+        """
+        Should delete the intermediate file if the function raises and exception.
+        """
+        class MyException(Exception):
+            pass
+
+        class Video(object):
+            def __init__(self):
+                self.ext = ".mp4"
+                self.dirname = str(tmpdir)
+                self.intermediate_file = None
+
+            @chainable
+            def test(self, output_path=None):
+                raise MyException()
+
+        output_path = os.path.join(str(tmpdir), "output.mp4")
+        open(output_path, "a").close()
+        with mock.patch("os.unlink") as mock_unlink:
+            with pytest.raises(MyException):
+                Video().test()
+            assert mock_unlink.called
 
 
 class TestVideo:
