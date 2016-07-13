@@ -49,7 +49,7 @@ def test_ffmpeg_calls_check_output(mock_check_output):
     args = ["a", "b", "c"]
     ret = avtoolkit.video.ffmpeg(args, capture_stdout=True)
     assert mock_check_output.called
-    assert mock_check_output.call_args[0][0] == [avtoolkit.video.FFMPEG_BIN]+args
+    assert mock_check_output.call_args[0][0] == [avtoolkit.video.FFMPEG_BIN, "-y"]+args
     assert ret == "Hi!"
 
 
@@ -62,7 +62,7 @@ def test_ffmpeg_calls_check_call(mock_check_call):
     args = ["a", "b", "c"]
     avtoolkit.video.ffmpeg(args, capture_stdout=False)
     assert mock_check_call.called
-    assert mock_check_call.call_args[0][0] == [avtoolkit.video.FFMPEG_BIN]+args
+    assert mock_check_call.call_args[0][0] == [avtoolkit.video.FFMPEG_BIN, "-y"]+args
 
 
 class TestUtil:
@@ -168,7 +168,7 @@ class TestVideo:
         vid = avtoolkit.Video(TEST_VID_PATH)
         vid2 = avtoolkit.Video(TEST_VID_PATH)
         output_path = os.path.join(str(tmpdir), "joined.mp4")
-        vid.overlay(vid2, 1, output_path)
+        vid.overlay(vid2, 1, output_path=output_path)
         assert os.path.exists(output_path)
         assert magic.from_file(output_path, mime=True) == "video/mp4"
 
@@ -183,9 +183,9 @@ class TestVideo:
 
         # Should raise an AttributeError if `overlay_duration` is not provided with an image.
         with pytest.raises(AttributeError):
-            vid.overlay(img, 2, output_path)
+            vid.overlay(img, 2, output_path=output_path)
 
-        vid.overlay(img, 2, output_path, overlay_duration=2)
+        vid.overlay(img, 2, output_path=output_path, overlay_duration=2)
         assert os.path.exists(output_path)
         assert magic.from_file(output_path, mime=True) == "video/mp4"
 
@@ -197,7 +197,7 @@ class TestVideo:
         assert magic.from_file(TEST_VID_PATH, mime=True) == "video/mp4"
         vid = avtoolkit.Video(TEST_VID_PATH)
         output_file = os.path.join(str(tmpdir), "output.avi")
-        vid.reencode(output_file)
+        vid.reencode(output_path=output_file)
         assert magic.from_file(output_file, mime=True) == "video/x-msvideo"
 
     @pytest.mark.slow
@@ -228,12 +228,11 @@ class TestVideo:
         vid = avtoolkit.Video(TEST_VID_PATH)
         length = Decimal(vid.data["streams"][0]["duration"])
         output_path = os.path.join(str(tmpdir), "joined.mp4")
-        joined = vid.concatenate(output_path, before=(vid,), after=(vid,))
+        joined = vid.concatenate(output_path=output_path, before=(vid,), after=(vid,))
         assert os.path.exists(output_path)
         assert magic.from_file(output_path, mime=True) == "video/mp4"
         new_length = Decimal(joined.data["streams"][0]["duration"])
         assert percentage_difference(new_length, length*3) < 1
-
 
     def test_concatenate_no_reencode(self, tmpdir):
         """
@@ -242,7 +241,8 @@ class TestVideo:
         vid = avtoolkit.Video(TEST_VID_PATH)
         length = Decimal(vid.data["streams"][0]["duration"])
         output_path = os.path.join(str(tmpdir), "joined.mp4")
-        joined = vid.concatenate(output_path, before=(vid,), after=(vid,), reencode=False)
+        joined = vid.concatenate(
+            output_path=output_path, before=(vid,), after=(vid,), reencode=False)
         assert os.path.exists(output_path)
         assert magic.from_file(output_path, mime=True) == "video/mp4"
         new_length = Decimal(joined.data["streams"][0]["duration"])
@@ -254,7 +254,7 @@ class TestVideo:
         """
         vid = avtoolkit.Video(TEST_VID_PATH)
         with pytest.raises(ValueError):
-            vid.concatenate("/dev/null")
+            vid.concatenate(output_path="/dev/null")
 
     @pytest.mark.slow
     def test_scale(self, tmpdir):
@@ -267,7 +267,7 @@ class TestVideo:
         new_x = orig_x/2
         new_y = orig_y/2
         output = os.path.join(str(tmpdir), "scaled.mp4")
-        scaled = vid.scale((new_x, new_y), output)
+        scaled = vid.scale((new_x, new_y), output_path=output)
         assert os.path.exists(output)
         assert magic.from_file(output, mime=True) == "video/mp4"
         assert int(scaled.data["streams"][0]["width"]) == new_x
@@ -282,7 +282,7 @@ class TestVideo:
         original_length = Decimal(vid.data["streams"][0]["duration"])
         output_path = os.path.join(str(tmpdir), "inserted.mp4")
 
-        result = vid.insert(vid, 2.5, output_path, reencode=False)
+        result = vid.insert(vid, 2.5, output_path=output_path, reencode=False)
         assert os.path.exists(output_path)
         assert magic.from_file(output_path, mime=True) == "video/mp4"
         new_length = Decimal(result.data["streams"][0]["duration"])
@@ -298,7 +298,7 @@ class TestVideo:
         output_path = os.path.join(str(tmpdir), "trimmed.mp4")
         trim_secs = 3
 
-        trimmed = vid.trim_start(trim_secs, output_path)
+        trimmed = vid.trim_start(trim_secs, output_path=output_path)
         new_length = Decimal(trimmed.data["streams"][0]["duration"])
         assert new_length == (original_length-trim_secs)
 
@@ -312,6 +312,6 @@ class TestVideo:
         output_path = os.path.join(str(tmpdir), "trimmed.mp4")
         trim_secs = 3
 
-        trimmed = vid.trim_end(trim_secs, output_path)
+        trimmed = vid.trim_end(trim_secs, output_path=output_path)
         new_length = Decimal(trimmed.data["streams"][0]["duration"])
         assert new_length == (original_length-trim_secs)

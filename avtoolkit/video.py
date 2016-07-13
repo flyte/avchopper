@@ -10,7 +10,7 @@ import locale
 import json
 from subprocess import check_call, check_output
 
-from .util import tempdir
+from .util import tempdir, chainable
 
 
 FFMPEG_BIN = "ffmpeg"
@@ -28,7 +28,7 @@ def ffmpeg(args, capture_stdout=False):
     """ Call ffmpeg and redirect stderr to /dev/null """
     func = check_output_decoded if capture_stdout else check_call
     # return func([FFMPEG_BIN]+args, stderr=DEV_NULL)
-    return func([FFMPEG_BIN]+args)
+    return func([FFMPEG_BIN, "-y"]+args)
 
 
 def ffprobe(args):
@@ -40,10 +40,13 @@ class Video(object):
     """
     Represents a single video.
     """
-    def __init__(self, source):
+    def __init__(self, source, intermediate_file=None):
         if not os.path.exists(source):
             raise IOError("File does not exist at %r" % source)
         self.source = os.path.abspath(source)
+        self.dirname = os.path.dirname(self.source)
+        _, self.ext = os.path.splitext(self.source)
+        self.intermediate_file = intermediate_file
         self._data = None
         self._frame_paths = []
 
@@ -112,7 +115,8 @@ class Video(object):
         ffmpeg(args)
         self._frame_paths = [os.path.join(dest_dir, x) for x in sorted(os.listdir(dest_dir))]
 
-    def reencode(self, output_path):
+    @chainable
+    def reencode(self, output_path=None):
         """
         Simply reencode the video to the specified output_path.
         """
@@ -135,7 +139,8 @@ class Video(object):
         ])
         return (Video(beginning_path), Video(end_path))
 
-    def overlay(self, vid, start_seconds, output_path, overlay_duration=None, position=(0, 0)):
+    @chainable
+    def overlay(self, vid, start_seconds, overlay_duration=None, position=(0, 0), output_path=None):
         """
         Overlay the contents of `vid` onto this video starting at `start_seconds`.
         """
@@ -156,7 +161,8 @@ class Video(object):
         return Video(output_path)
 
     @tempdir
-    def concatenate(self, output_path, tmpdir, before=None, after=None, reencode=True):
+    @chainable
+    def concatenate(self, tmpdir, before=None, after=None, reencode=True, output_path=None):
         """
         Concatenate `before` Videos onto the beginning of this Video and `after` ones onto the end.
         """
@@ -183,7 +189,8 @@ class Video(object):
         return Video(output_path)
 
     @tempdir
-    def insert(self, vid, start_seconds, output_path, tmpdir, reencode=True):
+    @chainable
+    def insert(self, vid, start_seconds, tmpdir, reencode=True, output_path=None):
         """
         Insert the contents of `vid` into this video starting at `start_frame`
         for `limit` frames.
@@ -192,10 +199,12 @@ class Video(object):
         a_path = os.path.join(tmpdir, "a%s" % ext)
         b_path = os.path.join(tmpdir, "b%s" % ext)
         part_a, part_b = self.split(start_seconds, a_path, b_path)
-        vid.concatenate(output_path, before=(part_a,), after=(part_b,), reencode=reencode)
+        vid.concatenate(
+            output_path=output_path, before=(part_a,), after=(part_b,), reencode=reencode)
         return Video(output_path)
 
-    def trim_start(self, seconds, output_path):
+    @chainable
+    def trim_start(self, seconds, output_path=None):
         """
         Remove `seconds` from the beginning of the video.
         """
@@ -206,7 +215,8 @@ class Video(object):
         ])
         return Video(output_path)
 
-    def trim_end(self, seconds, output_path):
+    @chainable
+    def trim_end(self, seconds, output_path=None):
         """
         Remove `seconds` from the end of the video.
         """
@@ -218,7 +228,8 @@ class Video(object):
         ])
         return Video(output_path)
 
-    def scale(self, new_size, output_path):
+    @chainable
+    def scale(self, new_size, output_path=None):
         """
         Scale this video to `new_size`.
         """
