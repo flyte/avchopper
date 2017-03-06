@@ -154,7 +154,7 @@ class Video(object):
             "-i", self.source,
             "-i", vid.source,
             "-filter_complex",
-            "overlay=%s:enable='between(t,%d,%d)'" % (
+            "overlay=%s:enable='between(t,%f,%f)'" % (
                 ":".join(map(str, position)), start_seconds, start_seconds+duration
             ),
             output_path
