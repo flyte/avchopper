@@ -16,7 +16,7 @@ open_local = lambda path: open(os.path.join(os.path.dirname(__file__), path))
 
 config = {
     "name": "avtoolkit",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "namespace_packages": [],
     "packages": find_packages(exclude=[
         "*.tests",
