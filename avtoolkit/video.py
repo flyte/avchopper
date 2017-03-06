@@ -114,6 +114,7 @@ class Video(object):
         print("Running command: %r" % " ".join(args))
         ffmpeg(args)
         self._frame_paths = [os.path.join(dest_dir, x) for x in sorted(os.listdir(dest_dir))]
+        return self._frame_paths
 
     @chainable
     def reencode(self, output_path=None):
